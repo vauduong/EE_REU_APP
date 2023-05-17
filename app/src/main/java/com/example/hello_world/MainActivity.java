@@ -28,15 +28,17 @@ import static android.R.attr.delay;
 import static android.provider.AlarmClock.EXTRA_MESSAGE;
 
 public class MainActivity extends AppCompatActivity {
-    TextView Value,Byte_text,text_view,adc0,adc1,adc2;
+    TextView Value,Byte_text,text_view,adc0,adc1,adc2,temp1,temp2;
     Button increase, decrease,dig_out;
     private NfcAdapter nfc;
-    float ADC0=0,ADC1=0,ADC2=0;
+    float ADC0=0,ADC1=0,ADC2=0,TEMP1=0, TEMP2=0;
     private PendingIntent mpendingIntent;
+
     //graph var
     private final Handler mHandler = new Handler();
     private Runnable mTimer;
-    private LineGraphSeries<DataPoint> mSeries;
+    private LineGraphSeries<DataPoint> mSeries1;
+    private LineGraphSeries<DataPoint> mSeries2;
     private double graphLastXValue = 5d;
 
     //display variables
@@ -54,18 +56,23 @@ public class MainActivity extends AppCompatActivity {
         adc1 = (TextView) findViewById(R.id.ADC1_text);
         adc2 = (TextView) findViewById(R.id.ADC2_text);
         b_val=1;
-        init_display(f_val, b_val,ADC0,ADC1,ADC2);
+        init_display(f_val, b_val,ADC0,ADC1,ADC2, TEMP1, TEMP2);
         increase = (Button) findViewById(R.id.increase);
         decrease = (Button) findViewById(R.id.decrease);
         dig_out = (Button) findViewById(R.id.checkBox);
 
         //graph initialization
         GraphView graph = (GraphView) findViewById(R.id.graph);
-        mSeries = new LineGraphSeries<>();
-        graph.addSeries(mSeries);
+        mSeries1 = new LineGraphSeries<>();
+        graph.addSeries(mSeries1);
+        mSeries2 = new LineGraphSeries<>();
+        graph.addSeries(mSeries2);
         graph.getViewport().setXAxisBoundsManual(true);
         graph.getViewport().setMinX(0);
         graph.getViewport().setMaxX(40);
+        graph.getViewport().setYAxisBoundsManual(true);
+        graph.getViewport().setMinY(0);
+        graph.getViewport().setMaxY(40);
 
         nfc = NfcAdapter.getDefaultAdapter(this);
         if (nfc == null) {
@@ -117,11 +124,16 @@ public class MainActivity extends AppCompatActivity {
                 tmp = (Integer.parseInt(f_val.substring(9,10), 16)<<4)+ (Integer.parseInt(f_val.substring(10,11), 16))+ (Integer.parseInt(f_val.substring(12,13), 16) << 12) + (Integer.parseInt(f_val.substring(13,14), 16) << 8);
                 ADC1 = (float)(0.45*tmp)/(float)16384;
                 tmp = (Integer.parseInt(f_val.substring(15,16), 16)<<4)+ (Integer.parseInt(f_val.substring(16,17), 16))+ (Integer.parseInt(f_val.substring(18,19), 16) << 12) + (Integer.parseInt(f_val.substring(19,20), 16) << 8);
-                ADC0 = (float)(0.9*tmp)/(float)16384;
-                init_display(f_val,b_val,ADC0,ADC1,ADC2);
+                ADC0 = (float)(0.45*tmp)/(float)16384;
+                TEMP1 = (float) (((1.0 / ((((Math.log10(ADC1/0.022) / Math.log(2.718))) / 4330.0) + (1.0 / 298.15))) - 273.15));
+                TEMP2 = (float) (((1.0 / ((((Math.log10(ADC2/0.022) / Math.log(2.718))) / 4330.0) + (1.0 / 298.15))) - 273.15));
+
+                init_display(f_val,b_val,ADC0,ADC1, ADC2, TEMP1, TEMP2);
                 if(b_val>0)
                 {   graphLastXValue += 1d;
-                    mSeries.appendData(new DataPoint(graphLastXValue, ADC0), true, 40);}
+                    mSeries1.appendData(new DataPoint(graphLastXValue, TEMP1), true, 40);
+                    mSeries2.appendData(new DataPoint(graphLastXValue, TEMP2), true, 40);}
+
                 mHandler.postDelayed(this, 100);
             }
         };
@@ -226,7 +238,7 @@ public class MainActivity extends AppCompatActivity {
                         (byte)0x02, //block number
                         (byte)0x11, //reg1 Reference-ADC1 Configuration Register DECIMATION 12 BIT
                         (byte)0x11, //reg2 ADC2 Sensor Configuration Register
-                        (byte)0x10, //reg3 ADC0 Sensor Configuration Register
+                        (byte)0x11, //reg3 ADC0 Sensor Configuration Register
                         (byte)0x00, //reg4 Internal Sensor Configuration Register
                         (byte)0x00, //reg5 Initial Delay Period Setup Register
                         (byte)0x00, //reg6  JTAG Enable Password Register
@@ -343,14 +355,14 @@ public class MainActivity extends AppCompatActivity {
         public void decrease_func(View view)
     {
         b_val=0;
-        init_display(f_val, b_val,ADC0,ADC1,ADC2);
+        init_display(f_val, b_val,ADC0,ADC1,ADC2, TEMP2, TEMP2);
         //Log.i("decrease", "pressed button global");
     }
 
     public void increase_func(View view)
     {
         b_val=1;
-        init_display(f_val, b_val,ADC0,ADC1,ADC2);
+        init_display(f_val, b_val,ADC0,ADC1,ADC2, TEMP1, TEMP2);
         //Log.i("increase ", "pressed button global");
     }
     public void Digital_toggle(View view)
@@ -371,14 +383,14 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
-    protected void init_display(String disp_value,byte disp_byte,float disp_ADC0,float disp_ADC1,float disp_ADC2)  {
+    protected void init_display(String disp_value,byte disp_byte,float disp_ADC0,float disp_ADC1,float disp_ADC2, float disp_TEMP1, float disp_TEMP2)  {
         //display float
         Value.setText("Value: " + disp_value);
         //Display byte
         Byte_text.setText("Status : " + ((disp_byte > 0) ? "running" : "stopped"));
         //display ADC0
         adc0.setText("ADC0: "+String.valueOf(disp_ADC0)+ "V");
-        adc1.setText("ADC1: "+String.valueOf(disp_ADC1)+ "V");
-        adc2.setText("ADC2: "+String.valueOf(disp_ADC2)+ "V");
+        adc1.setText("ADC1: "+String.valueOf(disp_ADC1)+ "V, " +String.valueOf(disp_TEMP1)+ "C ");
+        adc2.setText("ADC2: "+String.valueOf(disp_ADC2)+ "V, " +String.valueOf(disp_TEMP2)+ "C ");
     }
 }
